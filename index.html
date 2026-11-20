@@ -25,7 +25,7 @@
   .who{font-weight:800;font-size:clamp(24px,7vw,46px);}
   .wA{color:var(--cardA)} .wB{color:var(--cardB)} .wC{color:var(--cardC)} .wD{color:var(--cardD)}
   .cwrap{position:relative;width:min(92vw,520px);aspect-ratio:1;border-radius:18px;overflow:hidden;
-    background:#fff;border:3px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.06);touch-action:pinch-zoom;}
+    background:#fff;border:3px solid var(--line);box-shadow:0 6px 20px rgba(0,0,0,.06);touch-action:pinch-zoom;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;}
   .cwrap canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
   .tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;}
   .tool{width:40px;height:40px;border-radius:50%;border:2px solid var(--line);background:#fff;cursor:pointer;display:grid;place-items:center;font-size:18px;}
@@ -203,12 +203,15 @@ function redraw(){ dctx.clearRect(0,0,CW,CW);
   dctx.globalCompositeOperation='source-over';
 }
 function posFromEvt(e){ var r=draw.getBoundingClientRect(); var t=e.touches?e.touches[0]:e; return {x:(t.clientX-r.left)/r.width*CW,y:(t.clientY-r.top)/r.height*CW}; }
-function cancelStroke(){ if(cur){ if(cur.pts.length<4){ var i=strokes.indexOf(cur); if(i>=0) strokes.splice(i,1); } cur=null; redraw(); } }
-function down(e){ if(e.touches && e.touches.length>1){ cancelStroke(); return; } e.preventDefault(); cur={color:penColor,size:erasing?penSize*2.5:penSize,erase:erasing,pts:[posFromEvt(e)]}; strokes.push(cur); redraw(); }
-function move(e){ if(e.touches && e.touches.length>1){ cancelStroke(); return; } if(!cur)return; e.preventDefault(); cur.pts.push(posFromEvt(e)); redraw(); }
+function setBrush(s){ dctx.globalCompositeOperation=s.erase?'destination-out':'source-over'; dctx.strokeStyle=s.color; dctx.fillStyle=s.color; dctx.lineWidth=s.size; dctx.lineCap='round'; dctx.lineJoin='round'; }
+function drawDot(s,p){ setBrush(s); dctx.beginPath(); dctx.arc(p.x,p.y,Math.max(s.size/2,0.5),0,2*Math.PI); dctx.fill(); dctx.globalCompositeOperation='source-over'; }
+function drawSeg(s,a,b){ setBrush(s); dctx.beginPath(); dctx.moveTo(a.x,a.y); dctx.lineTo(b.x,b.y); dctx.stroke(); dctx.globalCompositeOperation='source-over'; }
+function cancelStroke(){ if(cur){ if(cur.pts.length<4){ var i=strokes.indexOf(cur); if(i>=0) strokes.splice(i,1); redraw(); } cur=null; } }
+function down(e){ if(e.touches && e.touches.length>1){ cancelStroke(); return; } var p=posFromEvt(e); cur={color:penColor,size:erasing?penSize*2.5:penSize,erase:erasing,pts:[p]}; strokes.push(cur); drawDot(cur,p); }
+function move(e){ if(e.touches && e.touches.length>1){ cancelStroke(); return; } if(!cur)return; var p=posFromEvt(e), prev=cur.pts[cur.pts.length-1]; cur.pts.push(p); drawSeg(cur,prev,p); }
 function up(){ cur=null; }
 draw.addEventListener('mousedown',down); window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
-draw.addEventListener('touchstart',down,{passive:false}); draw.addEventListener('touchmove',move,{passive:false}); draw.addEventListener('touchend',up);
+draw.addEventListener('touchstart',down,{passive:true}); draw.addEventListener('touchmove',move,{passive:true}); draw.addEventListener('touchend',up); draw.addEventListener('touchcancel',up);
 (function buildTools(){
   var t=$('tools');
   ['#2a2420','#e4572e','#f2a900','#2e9e6b','#3f7fe0','#9b59b6','#e46aa0','#ffffff'].forEach(function(c,i){ var d=document.createElement('div'); d.className='sw'+(i===0?' sel':''); d.style.background=c; d.dataset.col=c; d.onclick=function(){penColor=c;erasing=false;markTools();}; t.appendChild(d); });
