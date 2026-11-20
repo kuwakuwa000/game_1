@@ -59,12 +59,24 @@
   .prow{display:flex;justify-content:space-between;background:#fff;border:2px solid var(--line);border-radius:10px;padding:8px 14px;font-weight:700;}
   .code{font-family:monospace;font-size:clamp(16px,4vw,22px);background:#fff;border:2px dashed var(--accent);border-radius:12px;padding:10px 16px;word-break:break-all;}
   .col{display:flex;flex-direction:column;gap:10px;align-items:center;}
+  .howto{background:#fff;border:2px solid var(--line);border-radius:14px;padding:14px 18px;max-width:430px;text-align:left;line-height:1.9;font-size:14px;color:var(--ink);}
+  .howto .ttl{font-weight:800;font-size:16px;margin-bottom:4px;}
+  .howto b{color:var(--accent);}
+  .howto .big{font-weight:800;}
 </style>
 
 <div id="app">
   <section class="screen on" id="scTitle">
     <h1>ごちゃまぜ似顔絵</h1>
     <p>4人で遊ぶ お絵描きパーティ。<br>顔のパーツをこっそり描いて、他人の絵でヘンテコな顔を完成させよう。</p>
+    <div class="howto">
+      <div class="ttl">🎨 あそびかた</div>
+      顔は <b>8つのパーツ</b>（輪郭・髪・眉・目・鼻・口・耳・装飾）でできています。<br>
+      あなたの担当は <b>2パーツ</b>。<br>
+      その<b>1パーツにつき4枚ずつ</b>、少しちがう絵を描きます。<br>
+      → <span class="big">合計 2×4＝8枚</span> を描きます。<br>
+      最後にみんなの絵を<b>シャッフル</b>して、1枚の似顔絵が完成！
+    </div>
     <button class="btn" id="btnLocal">この端末で遊ぶ（1人〜）</button>
     <button class="btn sub" id="btnOnline">オンラインで遊ぶ（4人・別端末）</button>
     <p class="small">※オンラインはローカルのHTMLファイルで開いた時のみ動作します</p>
