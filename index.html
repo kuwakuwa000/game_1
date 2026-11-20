@@ -178,6 +178,18 @@
 "use strict";
 var $=function(id){return document.getElementById(id);};
 function show(id){ var s=document.querySelectorAll('.screen'); for(var i=0;i<s.length;i++)s[i].classList.remove('on'); $(id).classList.add('on'); }
+// 自前ダイアログ/トースト（標準 confirm/alert が使えない環境＝iframeやモバイル対策）
+(function(){ var box=document.createElement('div'); box.id='scConfirm';
+  box.style.cssText='position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:50;padding:18px';
+  box.innerHTML='<div style="background:#fff;border:2px solid var(--line);border-radius:16px;padding:20px;max-width:360px;width:100%;text-align:center"><p id="cfMsg" style="font-size:15px;line-height:1.7;color:#3a3330"></p><div style="display:flex;gap:10px;justify-content:center;margin-top:16px"><button class="btn ghost" id="cfNo">キャンセル</button><button class="btn" id="cfYes">はい</button></div></div>';
+  document.body.appendChild(box);
+  var t=document.createElement('div'); t.id='toast'; t.style.cssText='position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:10px;display:none;z-index:60;font-size:14px;max-width:86vw;text-align:center'; document.body.appendChild(t);
+})();
+var cfYesCb=null;
+function uiConfirm(msg,onYes){ $('cfMsg').textContent=msg; cfYesCb=onYes; $('scConfirm').style.display='flex'; }
+$('cfYes').onclick=function(){ $('scConfirm').style.display='none'; var cb=cfYesCb; cfYesCb=null; if(cb)cb(); };
+$('cfNo').onclick=function(){ $('scConfirm').style.display='none'; cfYesCb=null; };
+var toastT; function toast(msg){ var t=$('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastT); toastT=setTimeout(function(){ t.style.display='none'; },2200); }
 
 var PIDS=['A','B','C','D'];
 var PARTS=['輪郭','髪','眉','目','鼻','口','耳','装飾'];
@@ -340,14 +352,14 @@ $('btnBack').onclick=drawBack;
 function showSpectate(){ show('scWait'); $('waitTitle').textContent='観戦中…'; $('waitMsg').textContent='あなたの担当はCPUが引き継ぎました。\n結果を待っています…'; $('waitDots').innerHTML=''; }
 function abortGame(){
   if(MODE==='online'){
-    if(net.isHost){ if(!window.confirm('中断します。あなたの担当はCPUが引き継ぎ、他の人は続行します（この画面で観戦）。よろしいですか？'))return; hostDropToCpu(myPid); showSpectate(); return; }
-    if(!window.confirm('中断すると、あなたの担当はCPUが引き継ぎます。タイトルに戻りますか？'))return;
-    try{ if(net.conn) net.conn.send({t:'quit'}); }catch(e){}
-    net.playing=false; setTimeout(function(){ try{ if(net.peer)net.peer.destroy(); }catch(e){} },250);
-    show('scTitle');
+    if(net.isHost){ uiConfirm('中断します。あなたの担当はCPUが引き継ぎ、他の人は続行します（この画面で観戦）。よろしいですか？', function(){ hostDropToCpu(myPid); showSpectate(); }); return; }
+    uiConfirm('中断すると、あなたの担当はCPUが引き継ぎます。タイトルに戻りますか？', function(){
+      try{ if(net.conn) net.conn.send({t:'quit'}); }catch(e){}
+      net.playing=false; setTimeout(function(){ try{ if(net.peer)net.peer.destroy(); }catch(e){} },250);
+      show('scTitle');
+    });
   } else {
-    if(!window.confirm('中断してタイトルに戻りますか？'))return;
-    show('scTitle');
+    uiConfirm('中断してタイトルに戻りますか？', function(){ show('scTitle'); });
   }
 }
 $('btnAbort').onclick=abortGame;
@@ -381,7 +393,7 @@ $('btnHost').onclick=function(){
 $('btnJoin').onclick=function(){
   if(typeof Peer==='undefined'){ netMsg('オンライン不可：ローカルのHTMLファイルで開いてください'); $('netLobby').style.display='flex'; $('netEntry').style.display='none'; return; }
   var nm=($('nameIn').value||'').trim()||'ゲスト'; var code=($('codeIn').value||'').trim().replace(/[^0-9]/g,'');
-  if(code.length!==4){ alert('4桁の数字コードを入力してください'); return; }
+  if(code.length!==4){ toast('4桁の数字コードを入力してください'); return; }
   net.isHost=false; net.peer=new Peer(); $('netEntry').style.display='none'; $('netLobby').style.display='flex'; $('roomCode').textContent=code; netMsg('接続中…');
   net.peer.on('open',function(){ joinTryConnect(code,nm,0); });
   net.peer.on('disconnected',function(){ try{net.peer.reconnect();}catch(_){} });
@@ -435,7 +447,7 @@ function startGame(){ net.present=net.order.slice(); net.playing=true; newGame()
   var assign={}; PIDS.forEach(function(p){ assign[p]=G.players[p].types; });
   broadcast({t:'begin',assign:assign,names:netNames}); }
 $('btnBegin').onclick=function(){ if(!net.isHost||net.order.length<4) return; startGame(); };
-$('btnForce').onclick=function(){ if(!net.isHost) return; var n=net.order.length; if(window.confirm(n+'人で開始します。残り '+(4-n)+' 人はCPUが担当します。よろしいですか？')){ startGame(); } };
+$('btnForce').onclick=function(){ if(!net.isHost) return; var n=net.order.length; uiConfirm(n+'人で開始します。残り '+(4-n)+' 人はCPUが担当します。よろしいですか？', startGame); };
 
 function fromServer(d){
   if(d.t==='you'){ myPid=d.pid; }
