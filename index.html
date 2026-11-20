@@ -259,24 +259,9 @@ function composeToDataURL(res, cb){
     im.onload=function(){ ctx.drawImage(im,0,0,CW,CW); idx++; nx(); }; im.onerror=function(){ idx++; nx(); }; im.src=q[idx]; })();
 }
 function showGallery(faces){ show('scReveal'); var g=$('gallery'); g.innerHTML='';
-  PIDS.forEach(function(pid,idx){ var div=document.createElement('div'); div.className='face';
+  PIDS.forEach(function(pid){ var div=document.createElement('div'); div.className='face';
     var im=document.createElement('img'); im.src=faces[pid]||''; div.appendChild(im);
-    var nm=document.createElement('div'); nm.className='nm'; nm.style.color=PCOL[pid]; nm.textContent=(netNames[pid]||('プレイヤー'+pid))+' の顔'; div.appendChild(nm);
-    var ab=document.createElement('button'); ab.className='btn sub'; ab.style.cssText='padding:8px 14px;font-size:13px;margin-top:8px'; ab.textContent='✨AIでリアルに';
-    var aiImg=document.createElement('img'); aiImg.style.cssText='display:none;margin-top:8px';
-    var cap=document.createElement('div'); cap.className='small'; cap.style.display='none'; cap.textContent='AIが想像したリアル顔';
-    ab.onclick=function(){ aiRealistic(aiImg,cap,ab); };
-    div.appendChild(ab); div.appendChild(aiImg); div.appendChild(cap); g.appendChild(div); });
-}
-function aiRealistic(aiImg,cap,btn){
-  btn.disabled=true; btn.textContent='生成中…（10秒ほど）';
-  var prompt='photorealistic portrait photo of a quirky friendly human face, front view, plain studio background, soft natural lighting, highly detailed, 50mm';
-  var seed=Math.floor(Math.random()*100000);
-  var url='https://image.pollinations.ai/prompt/'+encodeURIComponent(prompt)+'?width=512&height=512&nologo=true&seed='+seed;
-  var gen=new Image();
-  gen.onload=function(){ aiImg.src=gen.src; aiImg.style.display='block'; cap.style.display='block'; btn.textContent='✨別パターンを生成'; btn.disabled=false; };
-  gen.onerror=function(){ btn.textContent='生成失敗（ネット環境を確認）'; btn.disabled=false; };
-  gen.src=url;
+    var nm=document.createElement('div'); nm.className='nm'; nm.style.color=PCOL[pid]; nm.textContent=(netNames[pid]||('プレイヤー'+pid))+' の顔'; div.appendChild(nm); g.appendChild(div); });
 }
 
 /* ========================================================================
