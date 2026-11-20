@@ -122,6 +122,7 @@
 
   <section class="screen" id="scDraw">
     <div class="topline">
+      <button class="btn ghost" id="btnAbort" style="padding:8px 14px;font-size:13px">中断</button>
       <span class="who" id="drawWho" style="font-size:22px">A</span>
       <span class="pill" id="drawPart">パーツ</span>
       <span class="count" id="drawCount">1/8</span>
@@ -132,8 +133,9 @@
     </div>
     <div class="tools" id="tools"></div>
     <div class="topline">
+      <button class="btn ghost" id="btnBack">◀ 一つ前</button>
       <button class="btn ghost" id="btnClear">ぜんぶ消す</button>
-      <button class="btn" id="btnDone">かけた！つぎへ ▶</button>
+      <button class="btn" id="btnDone">かけた！▶</button>
     </div>
   </section>
 
@@ -191,7 +193,8 @@ function newGame(){
   for(var i=0;i<4;i++){ var t2=[types[i*2],types[i*2+1]]; players[PIDS[i]]={id:PIDS[i],types:t2}; authorOf[t2[0]]=PIDS[i]; authorOf[t2[1]]=PIDS[i]; }
   var cards={};
   for(var k=0;k<PARTS.length;k++){ var tp=PARTS[k]; cards[tp]=[]; for(var v=0;v<4;v++) cards[tp].push({type:tp,author:authorOf[tp],vari:v,number:0,img:null,picks:0}); }
-  G={ players:players, authorOf:authorOf, cards:cards, drawP:0, drawQueue:[], drawIdx:0,
+  strokeStore={};
+  G={ players:players, authorOf:authorOf, cards:cards, drawP:0, drawQueue:[], drawIdx:0, revealed:false,
       selType:0, selOrder:[], selPos:0, results:{A:{},B:{},C:{},D:{}} };
 }
 
@@ -253,7 +256,8 @@ function exportCard(){ var tmp=document.createElement('canvas'); tmp.width=CW;tm
     if(s.pts.length===1) tx.lineTo(s.pts[0].x+0.1,s.pts[0].y+0.1); tx.stroke(); }
   return tmp.toDataURL('image/png');
 }
-function startCard(pid,type,label){ strokes=[]; redraw(); drawGuide(type);
+var strokeStore={}, curKey='';
+function startCard(key,pid,type,label){ curKey=key; if(!strokeStore[key])strokeStore[key]=[]; strokes=strokeStore[key]; redraw(); drawGuide(type);
   $('drawWho').textContent=pid; $('drawWho').style.color=PCOL[pid]||'#3a3330'; $('drawPart').textContent=type; $('drawCount').textContent=label;
   erasing=false; penColor='#2a2420'; penSize=8; markTools(); }
 
@@ -290,14 +294,14 @@ $('btnSoloAll').onclick=function(){ MODE='local'; localMode='solo'; netNames={};
   soloQueue=[]; for(var k=0;k<PARTS.length;k++){ for(var v=0;v<4;v++) soloQueue.push({type:PARTS[k],vari:v}); } soloIdx=0;
   show('scDraw'); L_soloLoad(); };
 var soloQueue=[], soloIdx=0;
-function L_soloLoad(){ var it=soloQueue[soloIdx]; startCard('あなた',it.type,(soloIdx+1)+'/'+soloQueue.length); }
+function L_soloLoad(){ var it=soloQueue[soloIdx]; startCard('S'+soloIdx,'あなた',it.type,(soloIdx+1)+'/'+soloQueue.length); }
 function L_soloDone(){ var it=soloQueue[soloIdx]; G.cards[it.type][it.vari].img=exportCard(); soloIdx++; if(soloIdx>=soloQueue.length){ autoAssign(); L_reveal(); } else L_soloLoad(); }
 function L_buildQueue(pid){ var q=[],ts=G.players[pid].types; for(var i=0;i<ts.length;i++)for(var v=0;v<4;v++)q.push({type:ts[i],vari:v}); return q; }
 function L_startDraw(){ G.drawP=0; L_nextDrawer(); }
 function L_nextDrawer(){ if(G.drawP>=4){ autoAssign(); L_reveal(); return; }
   var pid=PIDS[G.drawP]; G.drawQueue=L_buildQueue(pid); G.drawIdx=0;
   passTo(pid,'絵を描きます',function(){ show('scDraw'); L_loadCard(); }); }
-function L_loadCard(){ var pid=PIDS[G.drawP], it=G.drawQueue[G.drawIdx]; startCard(pid,it.type,(G.drawIdx+1)+'/8'); }
+function L_loadCard(){ var pid=PIDS[G.drawP], it=G.drawQueue[G.drawIdx]; startCard('P'+G.drawP+'_'+G.drawIdx,pid,it.type,(G.drawIdx+1)+'/8'); }
 function L_done(){ var it=G.drawQueue[G.drawIdx]; G.cards[it.type][it.vari].img=exportCard();
   G.drawIdx++; if(G.drawIdx>=G.drawQueue.length){ G.drawP++; L_nextDrawer(); } else L_loadCard(); }
 function L_startSelect(){ G.selType=0; L_startType(); }
@@ -325,19 +329,39 @@ var passCb=null;
 function passTo(pid,what,cb){ passCb=cb; show('scPass'); $('passWho').textContent='プレイヤー '+pid; $('passWho').className='who w'+pid;
   $('passMsg').textContent=pid+' さんにわたしてね'; $('passSub').textContent='他の人は画面を見ないでね（'+what+'）'; }
 $('btnPassGo').onclick=function(){ var cb=passCb; passCb=null; if(cb)cb(); };
-$('btnClear').onclick=function(){ strokes=[]; redraw(); };
+$('btnClear').onclick=function(){ strokes.length=0; redraw(); };
 $('btnDone').onclick=function(){ if(MODE==='online') O_done(); else if(localMode==='pass') L_done(); else L_soloDone(); };
+function drawBack(){
+  if(MODE==='online'){ if(myDrawIdx>0){ myDrawIdx--; O_loadCard(); } }
+  else if(localMode==='pass'){ if(G.drawIdx>0){ G.drawIdx--; L_loadCard(); } }
+  else { if(soloIdx>0){ soloIdx--; L_soloLoad(); } }
+}
+$('btnBack').onclick=drawBack;
+function showSpectate(){ show('scWait'); $('waitTitle').textContent='観戦中…'; $('waitMsg').textContent='あなたの担当はCPUが引き継ぎました。\n結果を待っています…'; $('waitDots').innerHTML=''; }
+function abortGame(){
+  if(MODE==='online'){
+    if(net.isHost){ if(!window.confirm('中断します。あなたの担当はCPUが引き継ぎ、他の人は続行します（この画面で観戦）。よろしいですか？'))return; hostDropToCpu(myPid); showSpectate(); return; }
+    if(!window.confirm('中断すると、あなたの担当はCPUが引き継ぎます。タイトルに戻りますか？'))return;
+    try{ if(net.conn) net.conn.send({t:'quit'}); }catch(e){}
+    net.playing=false; setTimeout(function(){ try{ if(net.peer)net.peer.destroy(); }catch(e){} },250);
+    show('scTitle');
+  } else {
+    if(!window.confirm('中断してタイトルに戻りますか？'))return;
+    show('scTitle');
+  }
+}
+$('btnAbort').onclick=abortGame;
 $('btnAgain').onclick=function(){ show('scTitle'); };
 
 /* ========================================================================
    オンライン（PeerJS・ホスト権威）
    ======================================================================== */
 var netNames={};
-var net={isHost:false,peer:null,conns:{},conn:null,order:[],present:null,byPeer:{}};
+var net={isHost:false,peer:null,conns:{},conn:null,order:[],present:null,byPeer:{},playing:false};
 var myTypes=[], myQueue=[], myDrawIdx=0;
 
 $('btnOnline').onclick=function(){ MODE='online'; setupCanvases(); $('netEntry').style.display='flex'; $('netLobby').style.display='none'; show('scNet'); };
-$('btnNetBack').onclick=function(){ try{ if(net.peer)net.peer.destroy(); }catch(e){} net={isHost:false,peer:null,conns:{},conn:null,order:[],present:null,byPeer:{}}; show('scTitle'); };
+$('btnNetBack').onclick=function(){ try{ if(net.peer)net.peer.destroy(); }catch(e){} net={isHost:false,peer:null,conns:{},conn:null,order:[],present:null,byPeer:{},playing:false}; show('scTitle'); };
 function netMsg(m){ $('netMsg').textContent=m; }
 
 var ROOM_PREFIX='ngoe';  // 内部名前空間（他のPeerJS利用者との衝突回避）。画面には4桁のみ表示
@@ -345,7 +369,7 @@ function hostTryCode(retries){
   var code=String(Math.floor(1000+Math.random()*9000));  // 1000〜9999 の4桁
   var p=new Peer(ROOM_PREFIX+code); net.peer=p;
   p.on('open',function(){ $('roomCode').textContent=code; $('netEntry').style.display='none'; $('netLobby').style.display='flex'; lobbyRefresh(); });
-  p.on('connection',function(c){ c.on('open',function(){}); c.on('data',function(d){ hostOnData(c,d); }); c.on('close',function(){ netMsg('誰かが切断しました'); }); });
+  p.on('connection',function(c){ c.on('open',function(){}); c.on('data',function(d){ hostOnData(c,d); }); c.on('close',function(){ hostOnClose(c._pid); }); });
   p.on('disconnected',function(){ try{p.reconnect();}catch(_){} });
   p.on('error',function(e){ if(e.type==='unavailable-id' && retries>0){ try{p.destroy();}catch(_){} hostTryCode(retries-1); } else if(e.type!=='peer-unavailable') netMsg('エラー:'+e.type); });
 }
@@ -378,11 +402,13 @@ function hostOnData(c,d){
   if(d.t==='join'){
     var ex=net.byPeer[c.peer];  // 同じ人の再接続は同じ枠に統合（重複防止）
     if(ex){ net.conns[ex]=c; c._pid=ex; if(d.name) netNames[ex]=d.name; c.send({t:'you',pid:ex}); broadcast({t:'lobby',names:netNames,count:net.order.length}); lobbyRefresh(); return; }
-    if(net.order.length>=4){ try{c.send({t:'full'});}catch(_){} return; }
-    var pid=PIDS[net.order.length]; net.order.push(pid); net.byPeer[c.peer]=pid; net.conns[pid]=c; c._pid=pid; netNames[pid]=d.name||pid;
+    var pid=null; for(var pi=0;pi<4;pi++){ if(net.order.indexOf(PIDS[pi])<0){ pid=PIDS[pi]; break; } }
+    if(!pid){ try{c.send({t:'full'});}catch(_){} return; }
+    net.order.push(pid); net.byPeer[c.peer]=pid; net.conns[pid]=c; c._pid=pid; netNames[pid]=d.name||pid;
     c.send({t:'you',pid:pid}); broadcast({t:'lobby',names:netNames,count:net.order.length}); lobbyRefresh();
   } else if(d.t==='card'){ hostCard(c._pid,d); }
   else if(d.t==='pick'){ hostPick(c._pid,d.number); }
+  else if(d.t==='quit'){ hostOnClose(c._pid); }
 }
 function toHost(msg){ if(net.isHost){ if(msg.t==='card') hostCard(myPid,msg); else if(msg.t==='pick') hostPick(myPid,msg.number); } else if(net.conn) net.conn.send(msg); }
 function broadcast(msg){ for(var pid in net.conns){ try{net.conns[pid].send(msg);}catch(e){} } fromServer(msg); }
@@ -403,7 +429,7 @@ function botCardImg(type,vari){ var cv=document.createElement('canvas'); cv.widt
   else if(type==='口'){ x.beginPath(); x.moveTo(235,395); x.quadraticCurveTo(280,418+j,325,395); x.stroke(); }
   else if(type==='耳'){ el(132,300,20,34); x.stroke(); el(428,300,20,34); x.stroke(); }
   return cv.toDataURL('image/png'); }
-function startGame(){ net.present=net.order.slice(); newGame();
+function startGame(){ net.present=net.order.slice(); net.playing=true; newGame();
   PIDS.forEach(function(p){ if(isBot(p)) netNames[p]='CPU'; });
   for(var k=0;k<PARTS.length;k++){ var tp=PARTS[k]; if(isBot(G.authorOf[tp])){ for(var v=0;v<4;v++) G.cards[tp][v].img=botCardImg(tp,v); } }
   var assign={}; PIDS.forEach(function(p){ assign[p]=G.players[p].types; });
@@ -415,25 +441,37 @@ function fromServer(d){
   if(d.t==='you'){ myPid=d.pid; }
   else if(d.t==='full'){ netMsg('満員です（すでに4人）'); }
   else if(d.t==='lobby'){ netNames=d.names; lobbyRefresh(); }
-  else if(d.t==='begin'){ if(d.names) netNames=d.names; myTypes=d.assign[myPid]; O_startDraw(); }
+  else if(d.t==='begin'){ if(d.names) netNames=d.names; net.playing=true; myTypes=d.assign[myPid]; O_startDraw(); }
   else if(d.t==='draw'){ O_drawProg(d.counts); }
   else if(d.t==='sel'){ O_renderSel(d); }
   else if(d.t==='reveal'){ showGallery(d.faces); }
 }
 
 /* --- オンライン：お絵描き（各自が自分の分だけ） --- */
-function O_startDraw(){ myQueue=[]; for(var i=0;i<myTypes.length;i++)for(var v=0;v<4;v++) myQueue.push({type:myTypes[i],vari:v}); myDrawIdx=0; show('scDraw'); O_loadCard(); }
-function O_loadCard(){ var it=myQueue[myDrawIdx]; startCard(myPid,it.type,(myDrawIdx+1)+'/8'); }
+function O_startDraw(){ strokeStore={}; myQueue=[]; for(var i=0;i<myTypes.length;i++)for(var v=0;v<4;v++) myQueue.push({type:myTypes[i],vari:v}); myDrawIdx=0; show('scDraw'); O_loadCard(); }
+function O_loadCard(){ var it=myQueue[myDrawIdx]; startCard('O'+myDrawIdx,myPid,it.type,(myDrawIdx+1)+'/8'); }
 function O_done(){ var it=myQueue[myDrawIdx]; toHost({t:'card',type:it.type,vari:it.vari,img:exportCard()});
   myDrawIdx++; if(myDrawIdx>=myQueue.length){ show('scWait'); $('waitTitle').textContent='えがき おわり！'; $('waitMsg').textContent='他のプレイヤーが描き終わるのを待っています…'; $('waitDots').innerHTML=''; }
   else O_loadCard(); }
-function hostCard(pid,d){ // ホスト：カード収集
-  var arr=G.cards[d.type]; if(arr&&arr[d.vari]&&arr[d.vari].author===pid) arr[d.vari].img=d.img;
+function hostCard(pid,d){ var arr=G.cards[d.type]; if(arr&&arr[d.vari]&&arr[d.vari].author===pid) arr[d.vari].img=d.img; hostCheckDraw(); }
+function hostCheckDraw(){ if(!G||G.revealed)return;
   var counts={}; PIDS.forEach(function(p){ counts[p]=0; });
   for(var k=0;k<PARTS.length;k++){ var a=G.cards[PARTS[k]]; for(var v=0;v<4;v++){ if(a[v].img) counts[a[v].author]++; } }
   broadcast({t:'draw',counts:counts});
   var total=0; PIDS.forEach(function(p){ total+=counts[p]; });
-  if(total>=32){ autoAssign(); O_hostReveal(); }
+  if(total>=32){ G.revealed=true; autoAssign(); O_hostReveal(); }
+}
+// 中断・切断した人をCPU化（担当パーツの未描画分を自動生成）
+function hostDropToCpu(pid){ if(!net.playing||isBot(pid))return;
+  var i=net.present.indexOf(pid); if(i>=0)net.present.splice(i,1); netNames[pid]='CPU';
+  if(G&&G.authorOf){ for(var k=0;k<PARTS.length;k++){ var tp=PARTS[k]; if(G.authorOf[tp]===pid){ for(var v=0;v<4;v++){ if(!G.cards[tp][v].img) G.cards[tp][v].img=botCardImg(tp,v); } } } }
+  broadcast({t:'lobby',names:netNames,count:net.order.length}); hostCheckDraw();
+}
+function hostOnClose(pid){ if(!pid)return;
+  if(net.playing){ hostDropToCpu(pid); netMsg(pid+' が切断 → CPUが引き継ぎました'); return; }
+  delete net.conns[pid]; for(var kk in net.byPeer){ if(net.byPeer[kk]===pid) delete net.byPeer[kk]; }
+  var idx=net.order.indexOf(pid); if(idx>=0)net.order.splice(idx,1); delete netNames[pid];
+  broadcast({t:'lobby',names:netNames,count:net.order.length}); lobbyRefresh();
 }
 function O_drawProg(counts){ if($('scWait').classList.contains('on')){ var done=0; PIDS.forEach(function(p){ if(counts[p]>=8)done++; });
   $('waitMsg').textContent='他のプレイヤーが描いています…\n完了 '+done+' / 4 人'; } }
