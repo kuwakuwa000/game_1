@@ -76,7 +76,7 @@
       <input id="nameIn" placeholder="あなたの名前" maxlength="8">
       <button class="btn" id="btnHost">部屋をつくる（ホスト）</button>
       <div class="col" style="margin-top:6px">
-        <input id="codeIn" placeholder="部屋コードを入力">
+        <input id="codeIn" placeholder="部屋コード（数字4桁）" inputmode="numeric" maxlength="4">
         <button class="btn sub" id="btnJoin">参加する</button>
       </div>
     </div>
@@ -300,19 +300,25 @@ $('btnOnline').onclick=function(){ MODE='online'; setupCanvases(); $('netEntry')
 $('btnNetBack').onclick=function(){ try{ if(net.peer)net.peer.destroy(); }catch(e){} net={isHost:false,peer:null,conns:{},conn:null,order:[]}; show('scTitle'); };
 function netMsg(m){ $('netMsg').textContent=m; }
 
+var ROOM_PREFIX='ngoe';  // 内部名前空間（他のPeerJS利用者との衝突回避）。画面には4桁のみ表示
+function hostTryCode(retries){
+  var code=String(Math.floor(1000+Math.random()*9000));  // 1000〜9999 の4桁
+  var p=new Peer(ROOM_PREFIX+code); net.peer=p;
+  p.on('open',function(){ $('roomCode').textContent=code; $('netEntry').style.display='none'; $('netLobby').style.display='flex'; lobbyRefresh(); });
+  p.on('connection',function(c){ c.on('open',function(){}); c.on('data',function(d){ hostOnData(c,d); }); c.on('close',function(){ netMsg('誰かが切断しました'); }); });
+  p.on('error',function(e){ if(e.type==='unavailable-id' && retries>0){ try{p.destroy();}catch(_){} hostTryCode(retries-1); } else netMsg('エラー:'+e.type); });
+}
 $('btnHost').onclick=function(){
   if(typeof Peer==='undefined'){ netMsg('オンライン不可：ローカルのHTMLファイルで開いてください'); $('netLobby').style.display='flex'; $('netEntry').style.display='none'; return; }
   var nm=($('nameIn').value||'').trim()||'ホスト'; net.isHost=true; myPid='A'; net.order=['A']; netNames={A:nm};
-  net.peer=new Peer();
-  net.peer.on('open',function(id){ $('roomCode').textContent=id; $('netEntry').style.display='none'; $('netLobby').style.display='flex'; lobbyRefresh(); });
-  net.peer.on('connection',function(c){ c.on('open',function(){}); c.on('data',function(d){ hostOnData(c,d); }); c.on('close',function(){ netMsg('誰かが切断しました'); }); });
-  net.peer.on('error',function(e){ netMsg('エラー:'+e.type); });
+  netMsg('部屋コードを発行中…'); hostTryCode(8);
 };
 $('btnJoin').onclick=function(){
   if(typeof Peer==='undefined'){ netMsg('オンライン不可：ローカルのHTMLファイルで開いてください'); $('netLobby').style.display='flex'; $('netEntry').style.display='none'; return; }
-  var nm=($('nameIn').value||'').trim()||'ゲスト'; var code=($('codeIn').value||'').trim(); if(!code){ alert('コードを入力'); return; }
+  var nm=($('nameIn').value||'').trim()||'ゲスト'; var code=($('codeIn').value||'').trim().replace(/[^0-9]/g,'');
+  if(code.length!==4){ alert('4桁の数字コードを入力してください'); return; }
   net.isHost=false; net.peer=new Peer(); $('netEntry').style.display='none'; $('netLobby').style.display='flex'; $('roomCode').textContent=code; netMsg('接続中…');
-  net.peer.on('open',function(){ var c=net.peer.connect(code); net.conn=c;
+  net.peer.on('open',function(){ var c=net.peer.connect(ROOM_PREFIX+code); net.conn=c;
     c.on('open',function(){ c.send({t:'join',name:nm}); netMsg('接続しました。開始を待っています…'); });
     c.on('data',function(d){ fromServer(d); });
     c.on('close',function(){ netMsg('ホストが切断しました'); }); });
